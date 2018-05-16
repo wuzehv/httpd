@@ -1,7 +1,10 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdlib.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
+#include "error.h"
 #include "my_socket.h"
 
 #define PORT 80
@@ -19,25 +22,45 @@ int main(){
   while(1){
     int connect_d = accept_connect(listener_d);
 
-    memset(buf, 0, sizeof(buf));
+    pid_t pid = fork();
 
-    // 获取请求头
-    recv(connect_d, buf, sizeof(buf), 0);
+    // 进入子进程
+    if(!pid){
+      // 关闭主进程套接字
+      close(listener_d);
 
-    // 解析请求头
-    parse_header(buf, html, query_string);
+      memset(buf, 0, sizeof(buf));
 
-    // 默认请求index.html
-    if(strcmp(html, "/") == 0)
-      strcpy(html, "/index.html");
+      // 获取请求头
+      recv(connect_d, buf, sizeof(buf), 0);
 
-    printf("%s, %s\n", html, query_string);
+      // 解析请求头
+      parse_header(buf, html, query_string);
 
-    // 发送html
-    send_html(connect_d, html);
+      // 默认请求index.html
+      if(strcmp(html, "/") == 0)
+        strcpy(html, "/index.html");
+
+      printf("%s, %s\n", html, query_string);
+
+      // 发送html
+      send_html(connect_d, html);
+
+      // 关闭通讯套接字
+      close(connect_d);
+      // 退出子进程
+      exit(0);
+    }
+
+    int pid_status;
+    // 等待子进程结束，防止产生僵尸进程
+    if(waitpid(pid, &pid_status, 0) == -1)
+      error("can't wait process");
 
     close(connect_d);
   }
+
+  close(listener_d);
 
   return 0;
 }

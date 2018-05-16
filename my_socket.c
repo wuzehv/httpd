@@ -52,12 +52,6 @@ int accept_connect(int socket){
   return connect_d;
 }
 
-// 发消息
-void send_msg(int connect_d, char *msg){
-  if(send(connect_d, msg, strlen(msg), 0) == -1)
-    fprintf(stderr, "%s: %s\n", "can't send message", strerror(errno));
-}
-
 // 解析html，获取请求的html文件与查询字符串
 // "GET /index.html?id=1 HTTP/1.1"
 void parse_header(char *msg, char *html, char *query_string){
@@ -93,13 +87,8 @@ int send_html(int connect_d, char *file){
     fread(buf, sizeof(int), sizeof(buf), html);
   }
 
-  /* char line[100]; */
-  /* while(fscanf(html, "%99[^\n]\n", line) == 1){ */
-  /*   send_msg(connect_d, line); */
-  /* } */
-
   response(html_response, status, buf);
-  write(connect_d, html_response, sizeof(html_response));
+  send_msg(connect_d, html_response);
 
   if(html)
     fclose(html);
@@ -108,13 +97,19 @@ int send_html(int connect_d, char *file){
 }
 
 // 返回响应头
-void response(char *response, int status, const char *buf){
+void response(char *html_response, int status, const char *buf){
   char *status_info = "";
   if(status == 200)
     status_info = "OK";
   else if(status == 404)
     status_info = "Not Found";
 
-  char *html_response = "HTTP/1.1 %d %s\r\nContent-Type: text/html;charset=utf-8\r\nContent-Length: %d\r\n\r\n%s";
-  sprintf(response, html_response, status, status_info, strlen(buf), buf);
+  char *response_header = "HTTP/1.1 %d %s\r\nContent-Type: text/html;charset=utf-8\r\nContent-Length: %d\r\n\r\n%s";
+  sprintf(html_response, response_header, status, status_info, strlen(buf), buf);
+}
+
+// 发消息
+void send_msg(int connect_d, char *msg){
+  if(send(connect_d, msg, strlen(msg), 0) == -1)
+    fprintf(stderr, "%s: %s\n", "can't send message", strerror(errno));
 }
