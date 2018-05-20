@@ -39,7 +39,7 @@ int main(){
 
       // 默认请求index.html
       if(strcmp(html, "/") == 0)
-        strcpy(html, "/index.html");
+        strcpy(html, "/index.php");
 
       printf("%s, %s\n", html, query_string);
 

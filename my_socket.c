@@ -8,6 +8,7 @@
 #include "error.h"
 #include "my_socket.h"
 #include <unistd.h>
+#include "fastcgi.h"
 
 // 创建socket
 int create_socket(){
@@ -70,7 +71,7 @@ void parse_header(char *msg, char *html, char *query_string){
 
 // 发送请求的html到浏览器
 int send_html(int connect_d, char *file){
-  char root[100] = "/home/wuzehui/Desktop/clearn/httpd/web";
+  char root[100] = "/home/wuzehui/Documents/httpd/web/";
   char *html_file = strcat(root, file);
   char html_response[1024], buf[1024];
   memset(buf, 0, sizeof(buf));
@@ -83,7 +84,10 @@ int send_html(int connect_d, char *file){
   if(strcmp(file, "/favicon.ico") == 0 || !(html = fopen(html_file, "r"))){
     fprintf(stderr, "%s not found\n", html_file);
     status = 404;
-  } else {
+  } else if(strstr(file, "php")){
+    // 解析php
+    parsePhp(connect_d, buf);
+  } else{
     fread(buf, sizeof(int), sizeof(buf), html);
   }
 

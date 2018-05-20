@@ -1,30 +1,31 @@
-#include <stdio.h>
-#include <errno.h>
 #include <string.h>
+#include <stdio.h>
 #include <unistd.h>
+#include <assert.h>
+#include <errno.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include "my_socket.h"
 #include "fastcgi.h"
 
-int php_fpm_socket = 0;
-int request_id = 3;
+int connectFpm(char *ip, int port){
+  int rc;
+  int sockfd;
+  struct sockaddr_in server_address;
 
-int bind_php_fpm(int *socket, const char *ip, int port){
-  int s = create_socket();
-  struct sockaddr_in si;
-  memset(&si, 0, sizeof(si));
-  si.sin_family = PF_INET;
-  si.sin_addr.s_addr = inet_addr(ip);
-  si.sin_port = htons(port);
-  int c = connect(s, (struct sockaddr *)&si, sizeof(si));
-  if(c == -1){
-    fprintf(stderr, "error:%s\n", strerror(errno));
-    return -1;
-  }
-  *socket = s;
-  printf("socket:%d\n", *socket);
-  return 0;
+  sockfd = create_socket();
+  assert(sockfd > 0);
+
+  memset(&server_address, 0, sizeof(server_address));
+
+  server_address.sin_family = PF_INET;
+  server_address.sin_addr.s_addr = inet_addr(ip);
+  server_address.sin_port = htons(port);
+
+  rc = connect(sockfd, (struct sockaddr *)&server_address, sizeof(server_address));
+  assert(rc >= 0);
+
+  return sockfd;
 }
 
 FCGI_Header makeHeader(int type, int requestId, int contentLength, int paddingLength){
@@ -38,14 +39,6 @@ FCGI_Header makeHeader(int type, int requestId, int contentLength, int paddingLe
   header.paddingLength = (unsigned char)paddingLength;
   header.reserved = 0;
 
-  printf("verion:%d\n", header.version);
-  printf("type:%d\n", header.type);
-  printf("requestIdB1:%d\n", header.requestIdB1);
-  printf("requestIdB0:%d\n", header.requestIdB0);
-  printf("contentLengthB1:%d\n", header.contentLengthB1);
-  printf("contentLengthB0:%d\n", header.contentLengthB0);
-  printf("paddingLength:%d\n", header.paddingLength);
-
   return header;
 }
 
@@ -53,43 +46,28 @@ FCGI_BeginRequestBody makeBeginRequestBody(int role, int keepConn){
   FCGI_BeginRequestBody body;
   body.roleB1 = (unsigned char)((role >> 8) & 0xFF);
   body.roleB0 = (unsigned char)(role & 0xFF);
-  body.flags = (unsigned char)((keepConn) ? 1 : 0);
+  body.flags = (unsigned char)((keepConn) ? FASTCGI_KEEP_CONN : 0);
   memset(body.reserved, 0, sizeof(body.reserved));
-  printf("roleB1:%d\n", body.roleB1);
-  printf("roleB0:%d\n", body.roleB0);
-  printf("flags:%d\n", body.flags);
-  int i;
-  for(i = 0; i < 5;i++){
-    printf("reserved:%d\n", body.reserved[i]);
-  }
 
   return body;
 }
 
-int sendParams(int php_fpm_socket, int request_id, char *name, char *value){
-  int bodyLen;
-  char bodyBuffer[1024];
-  makeNameValueBody(name, strlen(name), value, strlen(value), bodyBuffer, &bodyLen);
-  FCGI_Header header;
-  header = makeHeader(FASTCGI_TYPE_ENV, request_id, bodyLen, 0);
-  int nameValueLen = bodyLen + sizeof(header);
-  char nameValueRecord[nameValueLen];
-  memcpy(nameValueRecord, (char *)&header, sizeof(header));
-  memcpy(nameValueRecord + sizeof(header), bodyBuffer, bodyLen);
+int sendStartRequestRecord(FCGI *c) {
+  int rc;
+  FCGI_BeginRequestRecord beginRecord;
 
-  int s = write(php_fpm_socket, bodyBuffer, nameValueLen);
-  printf("send_len:%d\n", s);
-  printf("namevaluelen:%d\n", nameValueLen);
-  printf("namevaluerecord:%s\n", nameValueRecord);
-  if(s == -1){
-    fprintf(stderr, "error:%s\n", strerror(errno));
-    return -1;
-  }
+  beginRecord.header = makeHeader(FASTCGI_TYPE_BEGIN, c->requestId, sizeof(beginRecord.body),0);
+  beginRecord.body = makeBeginRequestBody(PHP_FPM_ROLE_COMMOM, 0);
 
-  return 0;
+  rc = write(c->sockfd, (char *)&beginRecord, sizeof(beginRecord));
+  assert(rc == sizeof(beginRecord));
+
+  return 1;
 }
 
-int makeNameValueBody(char *name, int nameLen, char *value, int valueLen, unsigned char *bodyBuffer, int *bodyLen){
+int makeNameValueBody(char *name, int nameLen,
+                      char *value, int valueLen,
+                      unsigned char *bodyBuffer, int *bodyLen){
   unsigned char *startBodyBuffer = bodyBuffer;
   if(nameLen < 128){
     *bodyBuffer++ = (unsigned char)nameLen;
@@ -122,10 +100,21 @@ int makeNameValueBody(char *name, int nameLen, char *value, int valueLen, unsign
   return 0;
 }
 
-int sendEndRecord(int php_fpm_socket, int request_id){
+int sendParams(FCGI *c, char *name, char *value){
+  int bodyLen;
+  unsigned char bodyBuffer[1024];
+  makeNameValueBody(name, strlen(name), value, strlen(value), bodyBuffer, &bodyLen);
+
   FCGI_Header header;
-  header = makeHeader(FASTCGI_TYPE_END, request_id, 8, 0);
-  int s = write(php_fpm_socket, (char *) &header, sizeof(header));
+  header = makeHeader(FASTCGI_TYPE_ENV, c->requestId, bodyLen, 0);
+
+  int nameValueLen = bodyLen + FASTCGI_HEADER_LEN;
+  char nameValueRecord[nameValueLen];
+
+  memcpy(nameValueRecord, (char *)&header, FASTCGI_HEADER_LEN);
+  memcpy(nameValueRecord + FASTCGI_HEADER_LEN, bodyBuffer, bodyLen);
+
+  int s = write(c->sockfd, nameValueRecord, nameValueLen);
   if(s == -1){
     fprintf(stderr, "error:%s\n", strerror(errno));
     return -1;
@@ -134,35 +123,88 @@ int sendEndRecord(int php_fpm_socket, int request_id){
   return 0;
 }
 
-int main(){
-  // 连接php-fpm
-  int cs = bind_php_fpm(&php_fpm_socket, "127.0.0.1", 9000);
-  if(cs == -1){
-    return -1;
-  }
 
-  FCGI_BeginRecord beginRecord;
-  beginRecord.header = makeHeader(FASTCGI_TYPE_BEGIN, request_id, sizeof(beginRecord.body), 0);
-  beginRecord.body = makeBeginRequestBody(PHP_FPM_ROLE_COMMOM, 1);
-
-  // 发送开始消息记录
-  int s = write(php_fpm_socket, (char *) &beginRecord, sizeof(beginRecord));
+int sendEndRecord(FCGI *c){
+  FCGI_Header header;
+  header = makeHeader(FASTCGI_TYPE_END, c->requestId, FASTCGI_HEADER_LEN, 0);
+  int s = write(c->sockfd, (char *) &header, sizeof(header));
   if(s == -1){
     fprintf(stderr, "error:%s\n", strerror(errno));
     return -1;
   }
 
+  return 0;
+}
+
+void readFromFpm(FCGI *c, char *rinfo){
+  FCGI_Header responseHeader;
+  char content[1024];
+  int contentLen;
+
+  while(read(c->sockfd, &responseHeader, FASTCGI_HEADER_LEN) > 0){
+    if(responseHeader.type == FASTCGI_TYPE_SUCC){
+      contentLen = (responseHeader.contentLengthB1 << 8) + (responseHeader.contentLengthB0);
+      memset(content, 0, 1024);
+
+      // 读取内容
+      int rc = read(c->sockfd, content, contentLen);
+      if(rc != contentLen){
+        fprintf(stderr, "error:%s\n", strerror(errno));
+      }
+
+      char *delimiter = "\r\n";
+
+      strtok(content, delimiter);
+
+      char *tmp;
+      int i = 0;
+      int lenstep = 0;
+      memset(rinfo, 0, sizeof(rinfo));
+
+      while(tmp = strtok(NULL, "\r\n")){
+        if(i > 1){
+          memcpy(rinfo + lenstep, tmp, strlen(tmp));
+          lenstep += strlen(tmp);
+        } else if(i > 0){
+          memcpy(rinfo, tmp, strlen(tmp));
+          lenstep = strlen(tmp);
+        } else {
+
+        }
+        i++;
+      }
+
+      break;
+
+    } else if (responseHeader.type == FASTCGI_TYPE_ERROR){
+    }
+  }
+}
+
+int parsePhp(int requestId, char *buf){
+  // 连接php-fpm
+  FCGI init;
+  memset(&init, 0, sizeof(init));
+  FCGI* c = &init;
+
+  c->requestId = requestId;
+  c->sockfd = connectFpm("127.0.0.1", 9000);
+
+  if(c->sockfd == -1){
+    return -1;
+  }
+
+  sendStartRequestRecord(c);
   // 发送请求参数
-  sendParams(php_fpm_socket, request_id, "SCRIPT_FILENAME", "/home/wuzehui/Desktop/clearn/httpd/web/index.php");
-  sendParams(php_fpm_socket, request_id, "REQUEST_METHOD", "GET");
+  sendParams(c, "SCRIPT_FILENAME", "/home/wuzehui/Documents/httpd/web/index.php");
+  sendParams(c, "REQUEST_METHOD", "GET");
   // 发送结束记录
-  sendEndRecord(php_fpm_socket, request_id);
+  sendEndRecord(c);
+
   // 获取php-fpm输出
-  /* char buf[1024]; */
-  /* recv(php_fpm_socket, buf, sizeof(buf), 0); */
-  /* printf("%s\n", buf); */
-  fprintf(stdout, "succ");
-  close(php_fpm_socket);
+  readFromFpm(c, buf);
+
+  close(c->sockfd);
 
   return 0;
 }

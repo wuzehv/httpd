@@ -15,32 +15,39 @@
 #define PHP_FPM_ROLE_AUTH 2
 #define PHP_FPM_ROLE_EXTRA 3
 
-// fastcgi协议消息头
+#define FASTCGI_KEEP_CONN 1 // 是否为长连接
+#define FASTCGI_HEADER_LEN 8 // 消息头长度
+
 typedef struct{
-  unsigned char version;
-  unsigned char type;
+  int requestId;
+  int sockfd;
+}FCGI;
+
+typedef struct {
+  unsigned char version;          //版本
+  unsigned char type;             //操作类型
+  unsigned char requestIdB1;      //请求id
   unsigned char requestIdB0;
-  unsigned char requestIdB1;
+  unsigned char contentLengthB1;  //内容长度
   unsigned char contentLengthB0;
-  unsigned char contentLengthB1;
-  unsigned char paddingLength;
-  unsigned char reserved;
-}FCGI_Header;
+  unsigned char paddingLength;    //填充字节长度
+  unsigned char reserved;         //保留字节
+}FCGI_Header;   //消息头
 
 // 开始请求体
 typedef struct{
-  unsigned char roleB0;
   unsigned char roleB1;
+  unsigned char roleB0;
   unsigned char flags;
   unsigned char reserved[5];
 }FCGI_BeginRequestBody;
 
 // 结束消息体
 typedef struct{
-  unsigned char appStatusB0;
-  unsigned char appStatusB1;
-  unsigned char appStatusB2;
   unsigned char appStatusB3;
+  unsigned char appStatusB2;
+  unsigned char appStatusB1;
+  unsigned char appStatusB0;
   unsigned char protocolStatus; // 协议状态
   unsigned char reserved[3];
 }FCGI_EndRequestBody;
@@ -49,15 +56,9 @@ typedef struct{
 
 // 开始记录
 typedef struct{
-  FCGI_Header header;
-  FCGI_BeginRequestBody body;
-}FCGI_BeginRecord;
-
-// 结束记录
-typedef struct{
-  FCGI_Header header;
-  FCGI_EndRequestBody body;
-}FCGI_EndRecord;
+  FCGI_Header header;         //消息头
+  FCGI_BeginRequestBody body; //开始请求体
+}FCGI_BeginRequestRecord;
 
 // 请求参数记录
 typedef struct{
@@ -67,18 +68,25 @@ typedef struct{
   unsigned char data[0];
 }FCGI_ParamsRecord;
 
+typedef struct{
+  char *responseHeader;
+  char *responseContent;
+}ResponseInfo;
+
+int parsePhp(int requestId, char *buf);
+
 // 下面是函数
 // 绑定php-fpm进行端口
-int bind_php_fpm(int *socket, const char *ip, int port);
+/* int bind_php_fpm(); */
 
 // 构造请求头部
-FCGI_Header makeHeader(int type, int requestId, int contentLength, int paddingLenth);
+/* FCGI_Header makeHeader(int type, int requestId, int contentLength, int paddingLenth); */
 
 // 构造开始请求记录协议体
-FCGI_BeginRequestBody makeBeginRequestBody(int role, int keepConn);
+/* FCGI_BeginRequestBody makeBeginRequestBody(int role, int keepConn); */
 
-int sendParams(int php_fpm_socket, int request_id, char *name, char *value);
+/* int sendParams(int php_fpm_socket, int request_id, char *name, char *value); */
 
-int makeNameValueBody(char *name, int nameLen, char *value, int valueLen, unsigned char *bodyBuffer, int *bodyLen);
+/* int makeNameValueBody(char *name, int nameLen, char *value, int valueLen, unsigned char *bodyBuffer, int *bodyLen); */
 
-int sendEndRecord(int php_fpm_socket, int request_id);
+/* int sendEndRecord(int php_fpm_socket, int request_id); */
