@@ -8,12 +8,15 @@
 #include "my_socket.h"
 #include "fastcgi.h"
 
+// 本文件主要用来处理httpd与php-fpm通讯
+
+// 连接php-fpm进程
 int connectFpm(char *ip, int port){
   int rc;
   int sockfd;
   struct sockaddr_in server_address;
 
-  sockfd = create_socket();
+  sockfd = createSocket();
   assert(sockfd > 0);
 
   memset(&server_address, 0, sizeof(server_address));
@@ -28,6 +31,7 @@ int connectFpm(char *ip, int port){
   return sockfd;
 }
 
+// 制作php-fpm所需的请求头
 FCGI_Header makeHeader(int type, int requestId, int contentLength, int paddingLength){
   FCGI_Header header;
   header.version = FASTCGI_VERSION;
@@ -42,6 +46,7 @@ FCGI_Header makeHeader(int type, int requestId, int contentLength, int paddingLe
   return header;
 }
 
+// 制作开始请求体
 FCGI_BeginRequestBody makeBeginRequestBody(int role, int keepConn){
   FCGI_BeginRequestBody body;
   body.roleB1 = (unsigned char)((role >> 8) & 0xFF);
@@ -52,6 +57,7 @@ FCGI_BeginRequestBody makeBeginRequestBody(int role, int keepConn){
   return body;
 }
 
+// 发送请求消息体
 int sendStartRequestRecord(FCGI *c) {
   int rc;
   FCGI_BeginRequestRecord beginRecord;
@@ -65,6 +71,7 @@ int sendStartRequestRecord(FCGI *c) {
   return 1;
 }
 
+// 计算请求参数大小
 int makeNameValueBody(char *name, int nameLen,
                       char *value, int valueLen,
                       unsigned char *bodyBuffer, int *bodyLen){
@@ -87,11 +94,11 @@ int makeNameValueBody(char *name, int nameLen,
     *bodyBuffer++ = (unsigned char)valueLen;
   }
 
-  for(int i = 0; i < strlen(name); i++){
+  for(unsigned int i = 0; i < strlen(name); i++){
     *bodyBuffer++ = name[i];
   }
 
-  for(int i = 0; i < strlen(value); i++){
+  for(unsigned int i = 0; i < strlen(value); i++){
     *bodyBuffer++ = value[i];
   }
 
@@ -100,6 +107,7 @@ int makeNameValueBody(char *name, int nameLen,
   return 0;
 }
 
+// 发送请求参数
 int sendParams(FCGI *c, char *name, char *value){
   int bodyLen;
   unsigned char bodyBuffer[1024];
@@ -124,6 +132,7 @@ int sendParams(FCGI *c, char *name, char *value){
 }
 
 
+// 发送结束消息
 int sendEndRecord(FCGI *c){
   FCGI_Header header;
   header = makeHeader(FASTCGI_TYPE_END, c->requestId, FASTCGI_HEADER_LEN, 0);
@@ -136,7 +145,8 @@ int sendEndRecord(FCGI *c){
   return 0;
 }
 
-void readFromFpm(FCGI *c, char *rinfo){
+// 从php-fpm输出读取响应头与html
+void readFromFpm(FCGI *c, char *rinfo, int len){
   FCGI_Header responseHeader;
   char content[1024];
   int contentLen;
@@ -159,9 +169,9 @@ void readFromFpm(FCGI *c, char *rinfo){
       char *tmp;
       int i = 0;
       int lenstep = 0;
-      memset(rinfo, 0, sizeof(rinfo));
+      memset(rinfo, 0, len);
 
-      while(tmp = strtok(NULL, "\r\n")){
+      while((tmp = strtok(NULL, "\r\n"))){
         if(i > 1){
           memcpy(rinfo + lenstep, tmp, strlen(tmp));
           lenstep += strlen(tmp);
@@ -181,8 +191,8 @@ void readFromFpm(FCGI *c, char *rinfo){
   }
 }
 
-int parsePhp(int requestId, char *buf){
-  // 连接php-fpm
+// 发送数据,解析php,并返回
+int parsePhp(int requestId, char *buf, int len){
   FCGI init;
   memset(&init, 0, sizeof(init));
   FCGI* c = &init;
@@ -202,7 +212,7 @@ int parsePhp(int requestId, char *buf){
   sendEndRecord(c);
 
   // 获取php-fpm输出
-  readFromFpm(c, buf);
+  readFromFpm(c, buf, len);
 
   close(c->sockfd);
 

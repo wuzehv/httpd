@@ -1,9 +1,6 @@
-<html>
-<head><title></title></head>
-<body>
 <?php
-
-echo "hello,php-fpm!!!";
-?>
-</body>
-</html>
+$i = 0;
+for($i; $i < 10; $i++){
+echo $i,'<br>';
+}
+echo 111;

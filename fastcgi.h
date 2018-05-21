@@ -12,15 +12,17 @@
 
 // 角色类型, 三个角色
 #define PHP_FPM_ROLE_COMMOM 1 // 最常用的，接受http请求，产生响应
+// 这两个目前没有用到
 #define PHP_FPM_ROLE_AUTH 2
 #define PHP_FPM_ROLE_EXTRA 3
 
 #define FASTCGI_KEEP_CONN 1 // 是否为长连接
 #define FASTCGI_HEADER_LEN 8 // 消息头长度
 
+// fastcgi结构体
 typedef struct{
-  int requestId;
-  int sockfd;
+  int requestId; // 请求id
+  int sockfd; // 客户端连接id
 }FCGI;
 
 typedef struct {
@@ -68,25 +70,4 @@ typedef struct{
   unsigned char data[0];
 }FCGI_ParamsRecord;
 
-typedef struct{
-  char *responseHeader;
-  char *responseContent;
-}ResponseInfo;
-
-int parsePhp(int requestId, char *buf);
-
-// 下面是函数
-// 绑定php-fpm进行端口
-/* int bind_php_fpm(); */
-
-// 构造请求头部
-/* FCGI_Header makeHeader(int type, int requestId, int contentLength, int paddingLenth); */
-
-// 构造开始请求记录协议体
-/* FCGI_BeginRequestBody makeBeginRequestBody(int role, int keepConn); */
-
-/* int sendParams(int php_fpm_socket, int request_id, char *name, char *value); */
-
-/* int makeNameValueBody(char *name, int nameLen, char *value, int valueLen, unsigned char *bodyBuffer, int *bodyLen); */
-
-/* int sendEndRecord(int php_fpm_socket, int request_id); */
+int parsePhp(int requestId, char *buf, int len);
