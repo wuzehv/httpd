@@ -70,4 +70,4 @@ typedef struct{
   unsigned char data[0];
 }FCGI_ParamsRecord;
 
-int parsePhp(int requestId, char *buf, int len);
+int parsePhp(int requestId, char *html, char *buf, int len);

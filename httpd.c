@@ -6,14 +6,15 @@
 #include <sys/wait.h>
 #include "error.h"
 #include "my_socket.h"
-
-#define PORT 80
-#define LISTEN_QUEUE_LEN 10
+#include "common.h"
 
 int main(){
+  int port = atoi(getConfig("listen"));
+  int listen_queue_len = atoi(getConfig("listen_queue_len"));
+
   int listener_d = createSocket();
-  bindPort(listener_d, PORT);
-  listenQueue(listener_d, LISTEN_QUEUE_LEN);
+  bindPort(listener_d, port);
+  listenQueue(listener_d, listen_queue_len);
 
   char buf[500];
   char html[50];
@@ -39,7 +40,7 @@ int main(){
 
       // 默认请求index.html
       if(strcmp(html, "/") == 0)
-        strcpy(html, "/index.php");
+        strcpy(html, getConfig("default_index"));
 
       printf("%s, %s\n", html, query_string);
 

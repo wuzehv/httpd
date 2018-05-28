@@ -5,8 +5,10 @@
 #include <errno.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <stdlib.h>
 #include "my_socket.h"
 #include "fastcgi.h"
+#include "common.h"
 
 // 本文件主要用来处理httpd与php-fpm通讯
 
@@ -192,13 +194,13 @@ void readFromFpm(FCGI *c, char *rinfo, int len){
 }
 
 // 发送数据,解析php,并返回
-int parsePhp(int requestId, char *buf, int len){
+int parsePhp(int requestId, char *html, char *buf, int len){
   FCGI init;
   memset(&init, 0, sizeof(init));
   FCGI* c = &init;
 
   c->requestId = requestId;
-  c->sockfd = connectFpm("127.0.0.1", 9000);
+  c->sockfd = connectFpm(getConfig("fastcgi_ip"), atoi(getConfig("fastcgi_port")));
 
   if(c->sockfd == -1){
     return -1;
@@ -206,7 +208,7 @@ int parsePhp(int requestId, char *buf, int len){
 
   sendStartRequestRecord(c);
   // 发送请求参数
-  sendParams(c, "SCRIPT_FILENAME", "/home/wuzehui/Documents/httpd/web/index.php");
+  sendParams(c, "SCRIPT_FILENAME", html);
   sendParams(c, "REQUEST_METHOD", "GET");
   // 发送结束记录
   sendEndRecord(c);
