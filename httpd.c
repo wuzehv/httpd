@@ -18,7 +18,7 @@ int main(){
   char query_string[1024];
 
   struct sockaddr_in clientaddr;
-  int clientlen, connfd;
+  unsigned int clientlen, connfd;
   struct hostent *hp;
   char *haddr;
 
