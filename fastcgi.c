@@ -6,29 +6,32 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
+#include <netinet/in.h>
 #include "my_socket.h"
 #include "fastcgi.h"
 #include "common.h"
+#include "error.h"
 
 // 本文件主要用来处理httpd与php-fpm通讯
 
 // 连接php-fpm进程
 int connectFpm(char *ip, int port){
-  int rc;
   int sockfd;
   struct sockaddr_in server_address;
+  struct in_addr iaddr;
 
-  sockfd = createSocket();
-  assert(sockfd > 0);
+  if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    error("can't create socket");
 
-  memset(&server_address, 0, sizeof(server_address));
-
-  server_address.sin_family = PF_INET;
-  server_address.sin_addr.s_addr = inet_addr(ip);
+  bzero((char *)&server_address, sizeof(server_address));
+  server_address.sin_family = AF_INET;
+  // 将地址先转换为整数，然后转换为大端法表示
+  inet_aton(ip, &iaddr);
+  server_address.sin_addr = iaddr;
   server_address.sin_port = htons(port);
 
-  rc = connect(sockfd, (struct sockaddr *)&server_address, sizeof(server_address));
-  assert(rc >= 0);
+  if((connect(sockfd, (SA *)&server_address, sizeof(server_address))) < 0)
+     error("can't listen port");
 
   return sockfd;
 }
