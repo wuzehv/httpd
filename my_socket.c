@@ -95,7 +95,7 @@ void response(char *html_response, int status, const char *buf){
   else if(status == 404)
     status_info = "Not Found";
 
-  char *response_header = "HTTP/1.1 %d %s\r\nContent-Type: text/html;charset=utf-8\r\nContent-Length: %d\r\n\r\n%s";
+  char *response_header = "HTTP/1.1 %d %s\r\nContent-Type: image/jpeg;charset=utf-8\r\nContent-Length: %d\r\n\r\n%s";
   sprintf(html_response, response_header, status, status_info, strlen(buf), buf);
 }
 

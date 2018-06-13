@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include "error.h"
 #include "common.h"
 
@@ -25,3 +26,5 @@ char *getConfig(const char *key){
     }
   }
 }
+
+

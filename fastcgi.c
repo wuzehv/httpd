@@ -25,7 +25,7 @@ int connectFpm(char *ip, int port){
 
   bzero((char *)&server_address, sizeof(server_address));
   server_address.sin_family = AF_INET;
-  // 将地址先转换为整数，然后转换为大端法表示
+  // 将ip转换为大端法表示数字
   inet_aton(ip, &iaddr);
   server_address.sin_addr = iaddr;
   server_address.sin_port = htons(port);
