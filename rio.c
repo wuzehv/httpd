@@ -5,15 +5,7 @@
 #include <errno.h>
 #include <string.h>
 #include <fcntl.h>
-
-#define RIO_BUFSIZE 8192
-
-typedef struct{
-  int rio_fd; // 描述符
-  int rio_cnt; // buffer内未读字节数量
-  char *rio_bufptr; // buffer指针
-  char rio_buf[RIO_BUFSIZE]; // buffer空间
-}rio_t;
+#include "rio.h"
 
 void rio_readinitb(rio_t *rp, int fd){
   rp->rio_fd = fd;
@@ -121,22 +113,4 @@ ssize_t rio_readn(int fd, char *usrbuf, size_t n){
   }
 
   return (n - nleft);
-}
-
-int main(int argc, char **argv){
-  int n;
-  rio_t rp;
-  char buf;
-
-  /* if(argc == 2){ */
-  /*   int fd = open(argv[1], O_RDONLY, 0); */
-  /*   dup2(fd, STDIN_FILENO); */
-  /*   close(fd); */
-  /* } */
-
-  /* rio_readinitb(&rp, STDIN_FILENO); */
-  while((n = rio_readn(STDIN_FILENO, &buf, 1)) != 0)
-    rio_writen(STDOUT_FILENO, &buf, 1);
-
-  return 0;
 }

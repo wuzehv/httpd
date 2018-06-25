@@ -10,6 +10,11 @@
 #include "my_socket.h"
 #include "fastcgi.h"
 #include "common.h"
+#include "rio.h"
+
+#define MAXLINE 2048
+
+void read_requests(rio_t *rp);
 
 // 创建socket
 int openListenfd(int port, int listenq){
@@ -37,6 +42,56 @@ int openListenfd(int port, int listenq){
     error("can't listen port");
 
   return listenfd;
+}
+
+void dealReques(int fd){
+  char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
+  rio_t rio;
+  rio_readinitb(&rio, fd);
+  rio_readlineb(&rio, buf, MAXLINE);
+  sscanf(buf, "%s %s %s", method, uri, version);
+  printf("method:%s, uri:%s, version:%s\n", method, uri, version);
+
+  // 读取完整的请求头
+  read_requests(&rio);
+
+  /* if(strcasecmp(method "GET") || strcasecmp(method, "POST")){ */
+  if(strcasecmp(method, "GET")){
+	clienterror(fd, method, "501", "Not Implemented",
+				"httpd does not implement this method");
+	return ;
+  }
+
+
+}
+
+void clienterror(int fd, char *method, char *statusnum,
+				 char *shortmsg, char *longmsg){
+  char buf[MAXLINE], body[MAXLINE];
+
+  sprintf(body, "<html><title>httpd error</title>");
+  sprintf(body, "%s<body>\r\n", body);
+  sprintf(body, "%s%s: %s\r\n", body, statusnum, shortmsg);
+  sprintf(body, "%s<p>%s: %s</p></body></html>\r\n", body, longmsg, method);
+
+  sprintf(buf, "HTTP/1.0 %s %s\r\n", statusnum, shortmsg);
+  rio_writen(fd, buf, strlen(buf));
+  sprintf(buf, "Content-type: text/html\r\n");
+  rio_writen(fd, buf, strlen(buf));
+  sprintf(buf, "Content-length: %d\r\n\r\n", (int)strlen(body));
+  rio_writen(fd, buf, strlen(buf));
+  rio_writen(fd, body, strlen(body));
+}
+
+void read_requests(rio_t *rp){
+  printf("%s\n", "input");
+  char buf[MAXLINE];
+
+  rio_readlineb(rp, buf, MAXLINE);
+  while(strcmp(buf, "\r\n")){
+	rio_readlineb(rp, buf, MAXLINE);
+	printf("%s\n", buf);
+  }
 }
 
 // 解析html，获取请求的html文件与查询字符串

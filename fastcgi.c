@@ -81,6 +81,7 @@ int makeNameValueBody(char *name, int nameLen,
                       char *value, int valueLen,
                       unsigned char *bodyBuffer, int *bodyLen){
   unsigned char *startBodyBuffer = bodyBuffer;
+  unsigned int i;
   if(nameLen < 128){
     *bodyBuffer++ = (unsigned char)nameLen;
   } else {
@@ -99,11 +100,11 @@ int makeNameValueBody(char *name, int nameLen,
     *bodyBuffer++ = (unsigned char)valueLen;
   }
 
-  for(unsigned int i = 0; i < strlen(name); i++){
+  for(i = 0; i < strlen(name); i++){
     *bodyBuffer++ = name[i];
   }
 
-  for(unsigned int i = 0; i < strlen(value); i++){
+  for(i = 0; i < strlen(value); i++){
     *bodyBuffer++ = value[i];
   }
 
