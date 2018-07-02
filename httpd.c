@@ -47,7 +47,7 @@ int main(){
       // 关闭主进程套接字
       close(listener_d);
 
-	  dealReques(connfd);
+      dealReques(connfd);
 
       memset(buf, 0, sizeof(buf));
 

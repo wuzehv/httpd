@@ -61,8 +61,6 @@ void dealReques(int fd){
 				"httpd does not implement this method");
 	return ;
   }
-
-
 }
 
 void clienterror(int fd, char *method, char *statusnum,
@@ -84,13 +82,13 @@ void clienterror(int fd, char *method, char *statusnum,
 }
 
 void read_requests(rio_t *rp){
-  printf("%s\n", "input");
   char buf[MAXLINE];
 
   rio_readlineb(rp, buf, MAXLINE);
   while(strcmp(buf, "\r\n")){
-	rio_readlineb(rp, buf, MAXLINE);
-	printf("%s\n", buf);
+    bzero(buf, sizeof(buf));
+    rio_readlineb(rp, buf, MAXLINE);
+    printf("%s", buf);
   }
 }
 
