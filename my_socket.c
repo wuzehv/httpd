@@ -6,6 +6,10 @@
 #include <stdio.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/mman.h>
+#include <fcntl.h>
 #include "error.h"
 #include "my_socket.h"
 #include "fastcgi.h"
@@ -46,7 +50,13 @@ int openListenfd(int port, int listenq){
 
 void dealReques(int fd){
   char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
+  char filename[MAXLINE];
+  struct stat sbuf;
+
+  int is_static;
   rio_t rio;
+
+  bzero(buf, sizeof(buf));
   rio_readinitb(&rio, fd);
   rio_readlineb(&rio, buf, MAXLINE);
   sscanf(buf, "%s %s %s", method, uri, version);
@@ -55,11 +65,32 @@ void dealReques(int fd){
   // 读取完整的请求头
   read_requests(&rio);
 
-  /* if(strcasecmp(method "GET") || strcasecmp(method, "POST")){ */
-  if(strcasecmp(method, "GET")){
-	clienterror(fd, method, "501", "Not Implemented",
-				"httpd does not implement this method");
-	return ;
+  // 请求方法仅支持get和post
+  if(strcasecmp(method, "GET") && strcasecmp(method, "POST")){
+    clienterror(fd, method, "501", "Not Implemented",
+          "httpd does not implement this method");
+    return ;
+  }
+  
+  // 判断是静态资源还是动态资源
+  is_static = parse_uri(uri, filename);
+
+  // 验证文件是否存在
+  if(stat(filename, &sbuf) < 0) {
+    clienterror(fd, method, "404", "Not found",
+          "file not found");
+    return ;
+  }
+
+  if(!(S_ISREG(sbuf.st_mode)) || !(S_IRUSR & sbuf.st_mode)){
+    clienterror(fd, method, "403", "Forbiddend",
+          "httpd can't read the file");
+    return ;
+  }
+
+  if(is_static){
+    server_static(fd, filename, sbuf.st_size);
+  } else {
   }
 }
 
@@ -81,6 +112,7 @@ void clienterror(int fd, char *method, char *statusnum,
   rio_writen(fd, body, strlen(body));
 }
 
+// 读取所有的请求头，当前还没有用到请求头信息
 void read_requests(rio_t *rp){
   char buf[MAXLINE];
 
@@ -88,72 +120,52 @@ void read_requests(rio_t *rp){
   while(strcmp(buf, "\r\n")){
     bzero(buf, sizeof(buf));
     rio_readlineb(rp, buf, MAXLINE);
-    printf("%s", buf);
   }
 }
 
-// 解析html，获取请求的html文件与查询字符串
-// "GET /index.html?id=1 HTTP/1.1"
-void parseHeader(char *msg, char *html, char *query_string){
-  char *delimiter = " ";
-  strtok(msg, delimiter);
-  // 临时存储index.html?id=1或index.html
-  char *tmp_file = strtok(NULL, delimiter);
-  if(strchr(tmp_file, '?')){
-    strcpy(html, strtok(tmp_file, "?"));
-    strcpy(query_string, strtok(NULL, "?"));
-  } else {
-    strcpy(html, tmp_file);
-    strcpy(query_string, "");
-  }
-}
+// 解析uri
+int parse_uri(char *uri, char *filename){
+  int flag = 1;
+  strcpy(filename, strcat(getConfig("root_path"), uri));
+  if(uri[strlen(uri)-1] == '/'){
+    strcpy(filename, strcat(filename, getConfig("default_index")));
 
-// 发送请求的html到浏览器
-int sendHtml(int connect_d, char *file){
-  char root[100];
-  strcpy(root, getConfig("root_path"));
-  char *html_file = strcat(root, file);
-  char html_response[1024], buf[1024];
-  memset(buf, 0, sizeof(buf));
-  memset(html_response, 0, sizeof(html_response));
-
-  // 响应状态码
-  int status = 200;
-
-  FILE *html;
-  if(strcmp(file, "/favicon.ico") == 0 || !(html = fopen(html_file, "r"))){
-    fprintf(stderr, "%s not found\n", html_file);
-    status = 404;
-  } else if(strstr(file, "php")){
-    // 解析php
-    parsePhp(connect_d, html_file, buf, sizeof(buf));
-  } else{
-    fread(buf, sizeof(int), sizeof(buf), html);
+    if(strstr(filename, ".php")) {
+      flag = 0;
+    }
+  } else if(strstr(uri, ".php")){
+    flag = 0;
   }
 
-  response(html_response, status, buf);
-  sendMsg(connect_d, html_response);
-
-  if(html)
-    fclose(html);
-
-  return 0;
+  return flag;
 }
 
-// 返回响应头
-void response(char *html_response, int status, const char *buf){
-  char *status_info = "";
-  if(status == 200)
-    status_info = "OK";
-  else if(status == 404)
-    status_info = "Not Found";
+void server_static(int fd, char *filename, int filesize){
+  int srcfd;
+  char *srcp, filetype[MAXLINE], buf[MAXLINE];
 
-  char *response_header = "HTTP/1.1 %d %s\r\nContent-Type: image/jpeg;charset=utf-8\r\nContent-Length: %d\r\n\r\n%s";
-  sprintf(html_response, response_header, status, status_info, strlen(buf), buf);
+  get_filetype(filename, filetype);
+
+  sprintf(buf, "HTTP/1.0 200 OK\r\n");
+  sprintf(buf, "%sServer: %s\r\n", buf, "httpd");
+  sprintf(buf, "%sContent-type: %s\r\n", buf, filetype);
+  sprintf(buf, "%sContent-length: %d\r\n\r\n", buf, filesize);
+  rio_writen(fd, buf, strlen(buf));
+
+  srcfd = open(filename, O_RDONLY, 0);
+  srcp = mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
+  close(srcfd);
+  rio_writen(fd, srcp, filesize);
+  munmap(srcp, filesize);
 }
 
-// 发消息
-void sendMsg(int connect_d, char *msg){
-  if(send(connect_d, msg, strlen(msg), 0) == -1)
-    fprintf(stderr, "%s: %s\n", "can't send message", strerror(errno));
+void get_filetype(char *filename, char *filetype){
+  if(strstr(filename, ".html"))
+    strcpy(filetype, "text/html");
+  else if(strstr(filename, ".gif"))
+    strcpy(filetype, "image/gif");
+  else if(strstr(filename, ".jpg"))
+    strcpy(filetype, "image/jpeg");
+  else if(strstr(filename, ".png"))
+    strcpy(filetype, "image/png");
 }

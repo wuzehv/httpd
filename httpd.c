@@ -6,11 +6,12 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <netinet/in.h>
+#include <netdb.h>
+#include <arpa/inet.h>
 #include "error.h"
 #include "my_socket.h"
 #include "common.h"
-#include <netdb.h>
-#include <arpa/inet.h>
+#include "rio.h"
 
 int main(){
   char buf[500];
@@ -48,23 +49,6 @@ int main(){
       close(listener_d);
 
       dealReques(connfd);
-
-      memset(buf, 0, sizeof(buf));
-
-      // 获取请求头
-      recv(connfd, buf, sizeof(buf), 0);
-
-      // 解析请求头
-      parseHeader(buf, html, query_string);
-
-      // 默认请求index.html
-      if(strcmp(html, "/") == 0)
-        strcpy(html, getConfig("default_index"));
-
-      printf("%s, %s\n", html, query_string);
-
-      // 发送html
-      sendHtml(connfd, html);
 
       // 关闭通讯套接字
       close(connfd);
