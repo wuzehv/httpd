@@ -14,10 +14,6 @@
 #include "rio.h"
 
 int main(){
-  char buf[500];
-  char html[50];
-  char query_string[1024];
-
   struct sockaddr_in clientaddr;
   unsigned int clientlen, connfd;
   struct hostent *hp;

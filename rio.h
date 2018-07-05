@@ -1,5 +1,7 @@
 #include <sys/types.h>
 
+#define MAXLINE 2048
+
 #define RIO_BUFSIZE 8092
 
 typedef struct{

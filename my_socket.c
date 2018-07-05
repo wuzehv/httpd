@@ -16,8 +16,6 @@
 #include "common.h"
 #include "rio.h"
 
-#define MAXLINE 2048
-
 void read_requests(rio_t *rp);
 
 // 创建socket
@@ -91,6 +89,7 @@ void dealReques(int fd){
   if(is_static){
     server_static(fd, filename, sbuf.st_size);
   } else {
+    parse_php(fd, filename);
   }
 }
 

@@ -11,6 +11,7 @@
 #include "fastcgi.h"
 #include "common.h"
 #include "error.h"
+#include "rio.h"
 
 // 本文件主要用来处理httpd与php-fpm通讯
 
@@ -152,53 +153,32 @@ int sendEndRecord(FCGI *c){
 }
 
 // 从php-fpm输出读取响应头与html
-void readFromFpm(FCGI *c, char *rinfo, int len){
+void readFromFpm(FCGI *c){
   FCGI_Header responseHeader;
-  char content[1024];
+  char content[MAXLINE], buf[MAXLINE];
   int contentLen;
 
   while(read(c->sockfd, &responseHeader, FASTCGI_HEADER_LEN) > 0){
     if(responseHeader.type == FASTCGI_TYPE_SUCC){
       contentLen = (responseHeader.contentLengthB1 << 8) + (responseHeader.contentLengthB0);
-      memset(content, 0, 1024);
+      memset(content, 0, contentLen);
 
       // 读取内容
-      int rc = read(c->sockfd, content, contentLen);
-      if(rc != contentLen){
-        fprintf(stderr, "error:%s\n", strerror(errno));
-      }
+      sprintf(buf, "HTTP/1.0 200 OK\r\n");
+      sprintf(buf, "%sServer: %s\r\n", buf, "httpd");
+      sprintf(buf, "%sContent-length: %d\r\n", buf, contentLen);
 
-      char *delimiter = "\r\n";
+      rio_writen(c->requestId, buf, sizeof(buf));
 
-      strtok(content, delimiter);
-
-      char *tmp;
-      int i = 0;
-      int lenstep = 0;
-      memset(rinfo, 0, len);
-
-      while((tmp = strtok(NULL, "\r\n"))){
-        if(i > 1){
-          memcpy(rinfo + lenstep, tmp, strlen(tmp));
-          lenstep += strlen(tmp);
-        } else if(i > 0){
-          memcpy(rinfo, tmp, strlen(tmp));
-          lenstep = strlen(tmp);
-        } else {
-
-        }
-        i++;
-      }
-
-      break;
-
+      rio_readn(c->sockfd, content, MAXLINE);
+      rio_writen(c->requestId, content, MAXLINE);
     } else if (responseHeader.type == FASTCGI_TYPE_ERROR){
     }
   }
 }
 
 // 发送数据,解析php,并返回
-int parsePhp(int requestId, char *html, char *buf, int len){
+int parse_php(int requestId, char *html){
   FCGI init;
   memset(&init, 0, sizeof(init));
   FCGI* c = &init;
@@ -218,7 +198,7 @@ int parsePhp(int requestId, char *html, char *buf, int len){
   sendEndRecord(c);
 
   // 获取php-fpm输出
-  readFromFpm(c, buf, len);
+  readFromFpm(c);
 
   close(c->sockfd);
 
