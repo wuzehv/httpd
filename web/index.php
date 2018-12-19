@@ -1,7 +1,6 @@
 <?php
-header("Name: wuzehui");
+header("Name: test");
 $i = 0;
 for($i; $i < 10; $i++){
-echo $i,'<br>';
+	echo $i,'<br>';
 }
-echo 111;

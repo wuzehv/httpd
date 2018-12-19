@@ -10,57 +10,53 @@
 #include <arpa/inet.h>
 #include "error.h"
 #include "my_socket.h"
-#include "common.h"
 #include "rio.h"
 
-int main(){
-  struct sockaddr_in clientaddr;
-  unsigned int clientlen, connfd;
-  struct hostent *hp;
-  char *haddr;
-
-  int port = atoi(getConfig("listen"));
-  int listen_queue_len = atoi(getConfig("listen_queue_len"));
-
-  int listener_d = openListenfd(port, listen_queue_len);
-
-  while(1){
-    clientlen = sizeof(clientaddr);
-    // 返回已连接描述符
-    connfd = accept(listener_d, (SA *)&clientaddr, &clientlen);
-
-    // 获取客户端地址信息
-    hp = gethostbyaddr((const char *)&clientaddr.sin_addr.s_addr,
-                       sizeof(clientaddr.sin_addr.s_addr), AF_INET);
-
-    // 转换成本机表示的ip
-    haddr = inet_ntoa(clientaddr.sin_addr);
-    printf("server connected to %s (%s)\n", hp->h_name, haddr);
-
-    pid_t pid = fork();
-
-    // 进入子进程
-    if(!pid){
-      // 关闭主进程套接字
-      close(listener_d);
-
-      dealReques(connfd);
-
-      // 关闭通讯套接字
-      close(connfd);
-      // 退出子进程
-      exit(0);
+int main(int argc, char **argv){
+    if (argc != 2) {
+        fprintf(stderr, "port not exists\n");
+        exit(1);
     }
 
-    int pid_status;
-    // 等待子进程结束，防止产生僵尸进程
-    if(waitpid(pid, &pid_status, 0) == -1)
-      error("can't wait process");
+    struct sockaddr_in clientaddr;
+    unsigned int clientlen, connfd;
+    char *haddr;
 
-    close(connfd);
-  }
+    int port = atoi(argv[1]);
+    int listen_queue_len = 1024;
 
-  close(listener_d);
+    int listener_d = openListenfd(port, listen_queue_len);
 
-  return 0;
+    while(1){
+        clientlen = sizeof(clientaddr);
+        // 返回已连接描述符
+        connfd = accept(listener_d, (SA *)&clientaddr, &clientlen);
+
+        // 转换成本机表示的ip
+        haddr = inet_ntoa(clientaddr.sin_addr);
+        printf("server connected to %s\n\n", haddr);
+
+        pid_t pid = fork();
+
+        // 进入子进程
+        if(!pid){
+            // 关闭主进程套接字
+            close(listener_d);
+
+            dealReques(connfd);
+
+            // 关闭通讯套接字
+            close(connfd);
+            // 退出子进程
+            exit(0);
+        }
+
+        wait(NULL);
+
+        close(connfd);
+    }
+
+    close(listener_d);
+
+    return 0;
 }
