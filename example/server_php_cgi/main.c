@@ -4,6 +4,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/types.h>
+#include <wait.h>
 #include <sys/socket.h>
 #include <string.h>
 #include <errno.h>
@@ -72,30 +73,41 @@ int open_listenfd(int port){
 }
 
 void doit(int connfd){
-    char buf[MAXREAD], tmp[MAXREAD], response[MAXREAD];
+    char buf[MAXREAD], method[MAXREAD], uri[MAXREAD], version[MAXREAD], line[MAXREAD], cgiargs[MAXREAD];
     bzero(buf, sizeof(buf));
-    bzero(response, sizeof(response));
     recv(connfd, buf, MAXREAD, 0);
     printf("%s\n%s\n\n", buf, "---request header print done---");
-    FILE *fp = NULL;
-    fp = fopen(HEADERFILE, "r");
-    if (fp == NULL)
-        error("fopen error");
-    while(fgets(tmp, MAXREAD, fp) != NULL){
-        send(connfd, tmp, strlen(tmp), 0);
-        printf("%s", tmp);
+    int i;
+    for(i = 0; i < MAXREAD; i++) {
+        if (buf[i] == '\n')
+            break;
+        line[i] = buf[i];
     }
-    fclose(fp);
+    line[i] = '\0';
+    sscanf(line, "%s %s %s", method, uri, version);
 
-    const char *html = "./index.html";
-    fp = fopen(html, "r");
-    if (fp == NULL)
-        error("fopen error");
-    while(fgets(tmp, MAXREAD, fp) != NULL){
-        send(connfd, tmp, strlen(tmp), 0);
-        printf("%s", tmp);
+    // 解析请求头
+    char *ptr;
+    ptr = index(uri, '?');
+    if (ptr) {
+        strcpy(cgiargs, ptr+1);
+        *ptr = '\0';
     }
-    fclose(fp);
+
+    printf("query_string: %s\n", cgiargs);
+
+    char *emptylist[] = {NULL};
+    
+    bzero(buf, sizeof(buf));
+    sprintf(buf, "HTTP/1.1 200 OK\r\nServer: bc\r\n");
+    send(connfd, buf, strlen(buf), 0);
+    if (fork() == 0) {
+        // 子进程
+        setenv("QUERY_STRING", cgiargs, 1);
+        dup2(connfd, STDOUT_FILENO);
+        execv("./bc", emptylist);
+    }
+    wait(NULL);
 }
 
 int main(int argc, char **argv){
