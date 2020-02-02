@@ -19,4 +19,7 @@ echo web_root_path > ./httpd.conf
 
 # 解析php
 # start php-fpm in 9000 port
+
+# http://ip:port/index.html
+# http://ip:port/index.php
 ```
