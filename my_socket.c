@@ -18,7 +18,7 @@
 void read_requests(rio_t *rp);
 
 // 创建socket
-int openListenfd(int port, int listenq){
+int open_listenfd(int port, int listenq){
     int listenfd, optval = 1;
     struct sockaddr_in serveraddr;
 
@@ -45,7 +45,7 @@ int openListenfd(int port, int listenq){
     return listenfd;
 }
 
-void dealReques(int fd){
+void deal_reques(int fd){
     char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE], line[MAXLINE], cgiargs[MAXLINE], filename[MAXLINE];
     struct stat sbuf;
     bzero(buf, sizeof(buf));
@@ -78,8 +78,19 @@ void dealReques(int fd){
   
     // 判断是静态资源还是动态资源
     int is_static = 0;
-    strcpy(filename, "/home/luorui/Documents/httpd/web/index.php");
-    /* is_static = parse_uri(uri, filename); */
+    is_static = parse_uri(uri);	
+
+    // 获取root目录
+    char rootpath[MAXLINE];
+    FILE *fp = NULL;
+ 
+    fp = fopen("./httpd.conf", "r");
+    fscanf(fp, "%s", rootpath);
+    fclose(fp);
+
+    bzero(filename, sizeof(filename));
+    strcat(filename, rootpath);
+    strcat(filename, uri);
 
     // 验证文件是否存在
     if(stat(filename, &sbuf) < 0) {
@@ -131,16 +142,9 @@ void read_requests(rio_t *rp){
 }
 
 // 解析uri
-int parse_uri(char *uri, char *filename){
+int parse_uri(char *uri){
     int flag = 1;
-    strcpy(filename, strcat("/home/wuzehui/Documents/httpd/web", uri));
-    if(uri[strlen(uri)-1] == '/'){
-        strcpy(filename, strcat(filename, "index.php"));
-
-        if(strstr(filename, ".php")) {
-            flag = 0;
-        }
-    } else if(strstr(uri, ".php")){
+    if(uri[strlen(uri)-1] == '/' || strstr(uri, ".php")){
         flag = 0;
     }
 

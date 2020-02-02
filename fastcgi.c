@@ -15,7 +15,7 @@
 // 本文件主要用来处理httpd与php-fpm通讯
 
 // 连接php-fpm进程
-int connectFpm(char *ip, int port){
+int connect_fpm(char *ip, int port){
     int sockfd;
     struct sockaddr_in server_address;
     struct in_addr iaddr;
@@ -37,7 +37,7 @@ int connectFpm(char *ip, int port){
 }
 
 // 制作php-fpm所需的请求头
-FCGI_Header makeHeader(int type, int requestId, int contentLength, int paddingLength){
+FCGI_Header make_header(int type, int requestId, int contentLength, int paddingLength){
     FCGI_Header header;
     header.version = FASTCGI_VERSION;
     header.type = (unsigned char) type;
@@ -52,7 +52,7 @@ FCGI_Header makeHeader(int type, int requestId, int contentLength, int paddingLe
 }
 
 // 制作开始请求体
-FCGI_BeginRequestBody makeBeginRequestBody(int role, int keepConn){
+FCGI_BeginRequestBody make_begin_request_body(int role, int keepConn){
     FCGI_BeginRequestBody body;
     body.roleB1 = (unsigned char)((role >> 8) & 0xFF);
     body.roleB0 = (unsigned char)(role & 0xFF);
@@ -63,12 +63,12 @@ FCGI_BeginRequestBody makeBeginRequestBody(int role, int keepConn){
 }
 
 // 发送请求消息体
-int sendStartRequestRecord(FCGI *c) {
+int send_start_request_record(FCGI *c) {
     int rc;
     FCGI_BeginRequestRecord beginRecord;
 
-    beginRecord.header = makeHeader(FASTCGI_TYPE_BEGIN, c->requestId, sizeof(beginRecord.body),0);
-    beginRecord.body = makeBeginRequestBody(PHP_FPM_ROLE_COMMOM, 0);
+    beginRecord.header = make_header(FASTCGI_TYPE_BEGIN, c->requestId, sizeof(beginRecord.body),0);
+    beginRecord.body = make_begin_request_body(PHP_FPM_ROLE_COMMOM, 0);
 
     rc = write(c->sockfd, (char *)&beginRecord, sizeof(beginRecord));
     assert(rc == sizeof(beginRecord));
@@ -77,7 +77,7 @@ int sendStartRequestRecord(FCGI *c) {
 }
 
 // 计算请求参数大小
-int makeNameValueBody(char *name, int nameLen,
+int make_name_value_body(char *name, int nameLen,
                       char *value, int valueLen,
                       unsigned char *bodyBuffer, int *bodyLen){
     unsigned char *startBodyBuffer = bodyBuffer;
@@ -114,13 +114,13 @@ int makeNameValueBody(char *name, int nameLen,
 }
 
 // 发送请求参数
-int sendParams(FCGI *c, char *name, char *value){
+int send_params(FCGI *c, char *name, char *value){
     int bodyLen;
     unsigned char bodyBuffer[1024];
-    makeNameValueBody(name, strlen(name), value, strlen(value), bodyBuffer, &bodyLen);
+    make_name_value_body(name, strlen(name), value, strlen(value), bodyBuffer, &bodyLen);
 
     FCGI_Header header;
-    header = makeHeader(FASTCGI_TYPE_ENV, c->requestId, bodyLen, 0);
+    header = make_header(FASTCGI_TYPE_ENV, c->requestId, bodyLen, 0);
 
     int nameValueLen = bodyLen + FASTCGI_HEADER_LEN;
     char nameValueRecord[nameValueLen];
@@ -139,9 +139,9 @@ int sendParams(FCGI *c, char *name, char *value){
 
 
 // 发送结束消息
-int sendEndRecord(FCGI *c){
+int send_end_record(FCGI *c){
     FCGI_Header header;
-    header = makeHeader(FASTCGI_TYPE_END, c->requestId, FASTCGI_HEADER_LEN, 0);
+    header = make_header(FASTCGI_TYPE_END, c->requestId, FASTCGI_HEADER_LEN, 0);
     int s = write(c->sockfd, (char *) &header, sizeof(header));
     if(s == -1){
         fprintf(stderr, "error:%s\n", strerror(errno));
@@ -152,7 +152,7 @@ int sendEndRecord(FCGI *c){
 }
 
 // 从php-fpm输出读取响应头与html
-void readFromFpm(FCGI *c){
+void read_from_fpm(FCGI *c){
     FCGI_Header responseHeader;
     char content[MAXLINE], buf[MAXLINE];
     int contentLen;
@@ -167,7 +167,6 @@ void readFromFpm(FCGI *c){
             sprintf(buf, "%sServer: %s\r\n", buf, "httpd");
 
             recv(c->sockfd, content, MAXLINE, 0);
-            sprintf(buf, "%sContent-length: %d\r\n", buf, (int)strlen(content));
             send(c->requestId, buf, strlen(buf), 0);
             send(c->requestId, content, strlen(content), 0);
             printf("fpm response -------------------------------------\n%s\n", content);
@@ -183,21 +182,21 @@ int parse_php(int requestId, char *html){
     FCGI* c = &init;
 
     c->requestId = requestId;
-    c->sockfd = connectFpm("127.0.0.1", 9000);
+    c->sockfd = connect_fpm("127.0.0.1", 9000);
 
     if(c->sockfd == -1){
         return -1;
     }
 
-    sendStartRequestRecord(c);
+    send_start_request_record(c);
     // 发送请求参数
-    sendParams(c, "SCRIPT_FILENAME", html);
-    sendParams(c, "REQUEST_METHOD", "GET");
+    send_params(c, "SCRIPT_FILENAME", html);
+    send_params(c, "REQUEST_METHOD", "GET");
     // 发送结束记录
-    sendEndRecord(c);
+    send_end_record(c);
 
     // 获取php-fpm输出
-    readFromFpm(c);
+    read_from_fpm(c);
 
     close(c->sockfd);
 

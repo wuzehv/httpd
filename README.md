@@ -1,17 +1,22 @@
 # httpd
 本项目主要用来学习与实践web server功能
 
-### 2018.5.20
-* 初步完成html与php的解析
+### 特性
+* 解析js、css、html、图片
+* 解析php
 
-### 2018.7.4
-* 解析静态资源（css，图片）
-* 根据《深入理解计算机系统》调整部分代码
+### usage
+gcc version 7.4.0
 
-### 2018.7.6
-* 重写了解析php部分的代码
+```bash
+git clone https://github.com/wuzehv/httpd.git
 
-### 目前存在的问题
-* 请求php页面的时候响应头有乱码
-* 请求经常性挂掉
-* 因为参考了不同的文献，以及项目写了挺长时间，导致代码规范不太一致，尴尬。。。 :)
+cd httpd
+make
+./httpd port
+
+echo web_root_path > ./httpd.conf
+
+# 解析php
+# start php-fpm in 9000 port
+```

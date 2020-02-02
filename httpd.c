@@ -25,7 +25,7 @@ int main(int argc, char **argv){
     int port = atoi(argv[1]);
     int listen_queue_len = 1024;
 
-    int listener_d = openListenfd(port, listen_queue_len);
+    int listener_d = open_listenfd(port, listen_queue_len);
 
     while(1){
         clientlen = sizeof(clientaddr);
@@ -43,7 +43,7 @@ int main(int argc, char **argv){
             // 关闭主进程套接字
             close(listener_d);
 
-            dealReques(connfd);
+            deal_reques(connfd);
 
             // 关闭通讯套接字
             close(connfd);
