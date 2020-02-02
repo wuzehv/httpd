@@ -2,7 +2,7 @@
 本项目主要用来学习与实践web server功能
 
 ### 特性
-* 解析js、css、html、图片
+* 解析js、css、html、图片等静态资源
 * 解析php
 
 ### usage
