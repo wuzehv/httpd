@@ -6,7 +6,7 @@
 * 解析php
 
 ### usage
-gcc version 7.4.0
+实验版本：gcc version 7.4.0
 
 ```bash
 git clone https://github.com/wuzehv/httpd.git
